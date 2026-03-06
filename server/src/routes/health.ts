@@ -36,12 +36,15 @@ export function healthRoutes(
       bootstrapStatus = roleCount > 0 ? "ready" : "bootstrap_pending";
     }
 
+    const bootstrapInviteToken = process.env.PAPERCLIP_BOOTSTRAP_INVITE_TOKEN;
+
     res.json({
       status: "ok",
       deploymentMode: opts.deploymentMode,
       deploymentExposure: opts.deploymentExposure,
       authReady: opts.authReady,
       bootstrapStatus,
+      bootstrapInviteToken: bootstrapStatus === "bootstrap_pending" ? bootstrapInviteToken : undefined,
       features: {
         companyDeletionEnabled: opts.companyDeletionEnabled,
       },

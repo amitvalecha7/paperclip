@@ -21,8 +21,17 @@ fi
 # 2. Automatic CEO Bootstrapping
 if [ "$AUTO_BOOTSTRAP" = true ]; then
     echo "Bootstrapping initial admin (CEO)..."
-    # Run the bootstrap command and print the result clearly in the logs
+    # Run the bootstrap command and extract the token
     BOOTSTRAP_OUTPUT=$(pnpm paperclipai auth bootstrap-ceo)
+    
+    # Extract token from the URL (e.g., http://.../invite/pcp_bootstrap_...)
+    INVITE_TOKEN=$(echo "$BOOTSTRAP_OUTPUT" | grep -o "pcp_bootstrap_[a-zA-Z0-9]*" || true)
+    
+    if [ -n "$INVITE_TOKEN" ]; then
+        echo "Exporting bootstrap invite token for automatic UI redirect."
+        export PAPERCLIP_BOOTSTRAP_INVITE_TOKEN="$INVITE_TOKEN"
+    fi
+
     echo "----------------------------------------------------------------"
     echo "INITIAL ADMIN SETUP REQUIRED"
     echo "$BOOTSTRAP_OUTPUT"
