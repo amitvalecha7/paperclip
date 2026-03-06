@@ -9,7 +9,7 @@ import {
 } from "@paperclipai/shared";
 import { forbidden } from "../errors.js";
 import { validate } from "../middleware/validate.js";
-import { accessService, companyPortabilityService, companyService, logActivity } from "../services/index.js";
+import { accessService, companyPortabilityService, companyService, logActivity, agentService } from "../services/index.js";
 import { assertBoard, assertCompanyAccess, getActorInfo } from "./authz.js";
 
 export function companyRoutes(db: Db) {
@@ -17,6 +17,7 @@ export function companyRoutes(db: Db) {
   const svc = companyService(db);
   const portability = companyPortabilityService(db);
   const access = accessService(db);
+  const agents = agentService(db);
 
   router.get("/", async (req, res) => {
     assertBoard(req);
@@ -106,6 +107,37 @@ export function companyRoutes(db: Db) {
     }
     const company = await svc.create(req.body);
     await access.ensureMembership(company.id, "user", req.actor.userId ?? "local-board", "owner", "active");
+
+    // Auto-hire CEO Agent (Specialist - Coworker)
+    await agents.create(company.id, {
+      name: "CEO Agent",
+      role: "board",
+      title: "Chief Executive Officer",
+      reportsTo: null,
+      capabilities: "Full control plane access and high-level specialist execution",
+      adapterType: "coworker",
+      adapterConfig: { url: "http://coworker:4111/protocol/action" },
+      runtimeConfig: {},
+      budgetMonthlyCents: 1000000,
+      metadata: { autoHired: true, backend: "coworker" },
+      status: "active",
+    });
+
+    // Auto-hire Infra Agent (Performance - ZeroClaw)
+    await agents.create(company.id, {
+      name: "Infra Agent",
+      role: "admin",
+      title: "DevOps & Infrastructure Lead",
+      reportsTo: null,
+      capabilities: "Low-overhead infrastructure management and autonomous tasks",
+      adapterType: "zeroclaw",
+      adapterConfig: { url: "http://zeroclaw:42617" },
+      runtimeConfig: {},
+      budgetMonthlyCents: 500000,
+      metadata: { autoHired: true, backend: "zeroclaw" },
+      status: "active",
+    });
+
     await logActivity(db, {
       companyId: company.id,
       actorType: "user",

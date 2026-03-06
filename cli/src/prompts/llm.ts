@@ -19,6 +19,8 @@ export async function promptLlm(): Promise<LlmConfig | undefined> {
     options: [
       { value: "claude" as const, label: "Claude (Anthropic)" },
       { value: "openai" as const, label: "OpenAI" },
+      { value: "ollama" as const, label: "Ollama (Local)" },
+      { value: "openrouter" as const, label: "OpenRouter" },
     ],
   });
 
@@ -27,17 +29,38 @@ export async function promptLlm(): Promise<LlmConfig | undefined> {
     process.exit(0);
   }
 
-  const apiKey = await p.password({
-    message: `${provider === "claude" ? "Anthropic" : "OpenAI"} API key`,
-    validate: (val) => {
-      if (!val) return "API key is required";
-    },
-  });
+  let apiKey: string | undefined;
+  if (provider !== "ollama") {
+    const key = await p.password({
+      message: `${provider === "claude" ? "Anthropic" : provider === "openrouter" ? "OpenRouter" : "OpenAI"} API key`,
+      validate: (val) => {
+        if (!val) return "API key is required";
+      },
+    });
 
-  if (p.isCancel(apiKey)) {
-    p.cancel("Setup cancelled.");
-    process.exit(0);
+    if (p.isCancel(key)) {
+      p.cancel("Setup cancelled.");
+      process.exit(0);
+    }
+    apiKey = key;
   }
 
-  return { provider, apiKey };
+  let baseUrl: string | undefined;
+  if (provider === "ollama" || provider === "openrouter") {
+    const url = await p.text({
+      message: `${provider === "ollama" ? "Ollama" : "OpenRouter"} Base URL`,
+      placeholder: provider === "ollama" ? "http://localhost:11434" : "https://openrouter.ai/api/v1",
+      validate: (val) => {
+        if (!val && provider === "ollama") return "Base URL is required for Ollama";
+      },
+    });
+
+    if (p.isCancel(url)) {
+      p.cancel("Setup cancelled.");
+      process.exit(0);
+    }
+    baseUrl = url || undefined;
+  }
+
+  return { provider, apiKey, baseUrl };
 }

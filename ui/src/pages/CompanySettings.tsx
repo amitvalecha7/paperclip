@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Settings } from "lucide-react";
 import { CompanyPatternIcon } from "../components/CompanyPatternIcon";
 import { Field, ToggleField, HintIcon } from "../components/agent-config-primitives";
+import { CompanyIntegrations } from "./CompanyIntegrations";
 
 export function CompanySettings() {
   const { companies, selectedCompany, selectedCompanyId, setSelectedCompanyId } = useCompany();
@@ -236,6 +237,9 @@ export function CompanySettings() {
           />
         </div>
       </div>
+
+      {/* Integrations */}
+      <CompanyIntegrations />
 
       {/* Invites */}
       <div className="space-y-4">

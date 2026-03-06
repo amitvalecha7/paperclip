@@ -14,8 +14,10 @@ export const configMetaSchema = z.object({
 });
 
 export const llmConfigSchema = z.object({
-  provider: z.enum(["claude", "openai"]),
+  provider: z.enum(["claude", "openai", "ollama", "openrouter"]),
   apiKey: z.string().optional(),
+  baseUrl: z.string().url().optional(),
+  model: z.string().optional(),
 });
 
 export const databaseBackupConfigSchema = z.object({

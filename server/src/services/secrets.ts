@@ -147,6 +147,35 @@ export function secretService(db: Db) {
     return normalized;
   }
 
+  async function pushToAdapters(companyId: string) {
+    try {
+      // In a real production setting, you'd queue this to a worker. 
+      // For this single-pane-of-glass integration, fire-and-forget is acceptable.
+      const allSecrets = await db.select().from(companySecrets).where(eq(companySecrets.companyId, companyId));
+      const resolvedEnv: Record<string, string> = {};
+      for (const secret of allSecrets) {
+        resolvedEnv[secret.name] = await resolveSecretValue(companyId, secret.id, "latest");
+      }
+
+      const body = JSON.stringify({ companyId, config: resolvedEnv });
+
+      Promise.allSettled([
+        fetch("http://coworker:4111/config", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body,
+        }),
+        fetch("http://zeroclaw:3101/config", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body,
+        })
+      ]).catch(e => console.error("Error in config push background task:", e));
+    } catch (e) {
+      console.error("Failed to gather config for adapters:", e);
+    }
+  }
+
   return {
     listProviders: () => listSecretProviders(),
 
@@ -180,7 +209,7 @@ export function secretService(db: Db) {
         externalRef: input.externalRef ?? null,
       });
 
-      return db.transaction(async (tx) => {
+      const result = await db.transaction(async (tx) => {
         const secret = await tx
           .insert(companySecrets)
           .values({
@@ -207,6 +236,10 @@ export function secretService(db: Db) {
 
         return secret;
       });
+      
+      // Fire-and-forget push
+      pushToAdapters(companyId).catch(() => {});
+      return result;
     },
 
     rotate: async (
@@ -223,7 +256,7 @@ export function secretService(db: Db) {
         externalRef: input.externalRef ?? secret.externalRef ?? null,
       });
 
-      return db.transaction(async (tx) => {
+      const result = await db.transaction(async (tx) => {
         await tx.insert(companySecretVersions).values({
           secretId: secret.id,
           version: nextVersion,
@@ -247,6 +280,10 @@ export function secretService(db: Db) {
         if (!updated) throw notFound("Secret not found");
         return updated;
       });
+
+      // Fire-and-forget push
+      pushToAdapters(secret.companyId).catch(() => {});
+      return result;
     },
 
     update: async (
@@ -263,7 +300,7 @@ export function secretService(db: Db) {
         }
       }
 
-      return db
+      const updated = await db
         .update(companySecrets)
         .set({
           name: patch.name ?? secret.name,
@@ -276,6 +313,11 @@ export function secretService(db: Db) {
         .where(eq(companySecrets.id, secret.id))
         .returning()
         .then((rows) => rows[0] ?? null);
+
+      if (updated) {
+        pushToAdapters(secret.companyId).catch(() => {});
+      }
+      return updated;
     },
 
     remove: async (secretId: string) => {
